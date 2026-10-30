@@ -1,0 +1,18 @@
+using System;using System.IO;using System.Collections.Generic;using UnityEngine;
+namespace RailDrivingSimulator {
+ [Serializable]public class TrafficPath{public string id;public float width,speed;public double length;public TrackPoint[] points;[NonSerialized]public RouteData route;public void Prepare(){route=new RouteData{points=points};}}
+ [Serializable]public class TrafficData{public TrafficPath[] paths;}
+ public class RoadTraffic:MonoBehaviour{
+  class Car{public GameObject objectCar;public TrafficPath path;public double s;public bool parked;}
+  MapWorld world;List<Car> cars=new List<Car>();TrafficPath[] paths;GameObject prefab;float refresh;bool paused;HashSet<string> used=new HashSet<string>();
+  public void Initialize(MapWorld map){world=map;prefab=Resources.Load<GameObject>("Traffic/CityCar");string file=map.info.manifest.trafficFile;if(!prefab||string.IsNullOrEmpty(file))return;paths=JsonUtility.FromJson<TrafficData>(File.ReadAllText(MapCatalog.Safe(map.info.folder,file))).paths;foreach(var p in paths)p.Prepare();}
+  public void SetPaused(bool value){paused=value;}
+  public int VerifyPaths(){if(!prefab||paths==null||paths.Length==0)throw new Exception("Traffic model/paths missing");if(prefab.GetComponentsInChildren<MeshRenderer>().Length<3)throw new Exception("Traffic model detail missing");foreach(var path in paths){if(path.points.Length<2||path.width<4.8f)throw new Exception("Invalid traffic path");foreach(double f in new[]{.1,.5,.9}){double s=path.length*f;var center=path.route.Pose(s);var p=Position(path,s,false)+world.origin;double lateral=Math.Sqrt(Math.Pow(p.x-center.x,2)+Math.Pow(p.z-center.z,2));if(Math.Abs(p.y-center.y)>.01||lateral>path.width*.5f)throw new Exception("Traffic left-lane pose mismatch");}}return paths.Length;}
+
+  Vector3 Position(TrafficPath path,double s,bool parked){var p=path.route.Pose(s);var a=path.route.Pose(Math.Max(0,s-2));var b=path.route.Pose(Math.Min(path.length,s+2));var dir=new Vector3((float)(b.x-a.x),0,(float)(b.z-a.z)).normalized;var left=new Vector3(-dir.z,0,dir.x);float offset=parked?path.width*.5f-.9f:Mathf.Min(path.width*.25f,3f);return new Vector3((float)p.x,(float)p.y,(float)p.z)+left*offset-world.origin;}
+  void LateUpdate(){if(paths==null)return;var cam=Camera.main;if(!cam)return;refresh+=Time.unscaledDeltaTime;
+   for(int i=cars.Count-1;i>=0;i--){var car=cars[i];if(!paused&&!car.parked)car.s+=car.path.speed*Time.deltaTime;var p=Position(car.path,car.s,car.parked);if(car.s>car.path.length-7||Vector3.Distance(p,cam.transform.position)>850){if(Vector3.Distance(p,cam.transform.position)<350){car.s=Math.Min(car.s,car.path.length-7);continue;}Destroy(car.objectCar);used.Remove(car.path.id);cars.RemoveAt(i);continue;}var a=Position(car.path,Math.Max(0,car.s-1.5),car.parked);var b=Position(car.path,Math.Min(car.path.length,car.s+1.5),car.parked);if((b-a).sqrMagnitude>.001f)car.objectCar.transform.SetPositionAndRotation(p,Quaternion.LookRotation(b-a,Vector3.up));}
+   if(refresh<2)return;refresh=0;if(cars.Count>=18)return;foreach(var path in paths){if(used.Contains(path.id))continue;double s=path.length*.55;var p=Position(path,s,false);float distance=Vector3.Distance(p,cam.transform.position);if(distance<400||distance>700)continue;var ob=Instantiate(prefab,transform);ob.SetActive(false);bool parked=(path.id.GetHashCode()&3)==0;var car=new Car{objectCar=ob,path=path,s=s,parked=parked};used.Add(path.id);cars.Add(car);ob.transform.position=Position(path,s,parked);var a=Position(path,s-2,parked);var b=Position(path,s+2,parked);ob.transform.rotation=Quaternion.LookRotation(b-a,Vector3.up);ob.SetActive(true);if(cars.Count>=18)break;}
+  }
+ }
+}

@@ -1,0 +1,11 @@
+using System;using UnityEngine;
+namespace RailDrivingSimulator {
+ public class AudioSystem:MonoBehaviour {
+  AudioSource motor,rolling,rain,horn,door,brake,wiper,ambience;DoorPhase previous;bool initialized;
+  AudioSource Loop(string name,int kind){var src=new GameObject(name,typeof(AudioSource)).GetComponent<AudioSource>();src.transform.SetParent(transform);src.clip=Clip(kind);src.loop=true;src.spatialBlend=0;src.Play();return src;}
+  AudioClip Clip(int type){const int rate=22050;int length=rate*2;var data=new float[length];var random=new System.Random(71+type);float noise=0;for(int i=0;i<length;i++){double t=(double)i/rate;noise=noise*.85f+(float)(random.NextDouble()*2-1)*.15f;double a=0;if(type==0)a=.25*Math.Sin(t*2*Math.PI*100)+.1*Math.Sin(t*2*Math.PI*200)+.07*Math.Sin(t*2*Math.PI*450);if(type==1)a=noise*.8+.12*Math.Sin(t*2*Math.PI*25);if(type==2)a=noise*.7;if(type==3)a=.24*Math.Sin(t*2*Math.PI*370)+.20*Math.Sin(t*2*Math.PI*554);if(type==4)a=noise*.3+.15*Math.Sin(t*2*Math.PI*900);if(type==5)a=noise*.6;if(type==6)a=noise*.4*Math.Pow(Math.Sin(t*Math.PI),4);if(type==7)a=noise*.15;data[i]=(float)a;}var clip=AudioClip.Create("Rail procedural original "+type,length,1,rate,false);clip.SetData(data,0);return clip;}
+  public void Initialize(){if(initialized)return;initialized=true;motor=Loop("牵引",0);rolling=Loop("轮轨",1);rain=Loop("雨声",2);horn=Loop("喇叭",3);door=Loop("车门",4);brake=Loop("制动",5);wiper=Loop("雨刷",6);ambience=Loop("站台环境",7);}
+  public void Tick(RunState s,bool paused,float volume,bool honk){if(!initialized)return;float v=(float)Math.Abs(s.v);motor.volume=paused?0:Mathf.Clamp01(v/30)*.24f*volume;motor.pitch=.6f+v/25;rolling.volume=paused?0:Mathf.Clamp01(v/18)*.36f*volume;rolling.pitch=.7f+v/45;rain.volume=paused||s.plan.weather!="雨"?0:.25f*volume;horn.volume=honk&&!paused?.65f*volume:0;door.volume=!paused&&(s.doors==DoorPhase.Opening||s.doors==DoorPhase.Closing)?.22f*volume:0;brake.volume=paused||v<.1f||(!s.emergency&&s.notch>=0)?0:.14f*volume;wiper.volume=!paused&&s.wiper&&s.plan.weather=="雨"?.12f*volume:0;ambience.volume=!paused&&v<1?.2f*volume:0;previous=s.doors;}
+  public void Stop(){foreach(var a in GetComponentsInChildren<AudioSource>())a.volume=0;}
+ }
+}

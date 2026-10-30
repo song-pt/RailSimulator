@@ -1,0 +1,11 @@
+using System;using System.Collections.Generic;using UnityEngine;
+namespace RailDrivingSimulator {
+ [Serializable]public class Binding {public string action;public KeyCode key;public Binding(string a,KeyCode k){action=a;key=k;}}
+ [Serializable]public class GameConfig {public int schema=1,quality=1;public float volume=.65f,sensitivity=1.4f;public TrainSpec train=new TrainSpec();public List<TrainSpec> presets=new List<TrainSpec>{new TrainSpec()};public List<Binding> bindings=new List<Binding>{new Binding("牵引增档",KeyCode.W),new Binding("制动增档",KeyCode.S),new Binding("惰行",KeyCode.X),new Binding("紧急制动",KeyCode.Backspace),new Binding("防失能",KeyCode.Space),new Binding("开门",KeyCode.O),new Binding("关门",KeyCode.C),new Binding("开门侧左",KeyCode.Q),new Binding("开门侧右",KeyCode.E),new Binding("切换视角",KeyCode.V),new Binding("视角归正",KeyCode.R),new Binding("喇叭",KeyCode.H),new Binding("雨刷",KeyCode.J),new Binding("前照灯",KeyCode.L),new Binding("紧急复位",KeyCode.Return),new Binding("HUD",KeyCode.Tab),new Binding("启车确认",KeyCode.F),new Binding("方向前进",KeyCode.Alpha1),new Binding("方向中立",KeyCode.Alpha2),new Binding("方向后退",KeyCode.Alpha3)};
+  public KeyCode Key(string action){var b=bindings.Find(x=>x.action==action);return b==null?KeyCode.None:b.key;}
+  public bool Down(string a){return MobileInput.Down(a)||Input.GetKeyDown(Key(a));}public bool Held(string a){return MobileInput.Held(a)||Input.GetKey(Key(a));}
+  public void SavePreset(){if(presets==null)presets=new List<TrainSpec>();presets.RemoveAll(x=>x.name==train.name);presets.Add(train.Copy());Save();}
+  public void Save(){Storage.Write("settings.json",JsonUtility.ToJson(this,true));}
+  public static GameConfig Load(){try{string s=Storage.Read("settings.json");if(s==null)return new GameConfig();var c=JsonUtility.FromJson<GameConfig>(s);c.train.Validate();if(c.schema!=1||c.quality<0||c.quality>3||c.bindings==null||c.bindings.Count!=20)throw new ArgumentException();var actions=new HashSet<string>(new GameConfig().bindings.ConvertAll(b=>b.action));var seen=new HashSet<KeyCode>();foreach(var b in c.bindings)if(!actions.Remove(b.action)||b.key==KeyCode.None||!seen.Add(b.key)||!Enum.IsDefined(typeof(KeyCode),b.key)||b.key==KeyCode.Escape)throw new ArgumentException();return c;}catch(Exception e){Debug.LogWarning("设置恢复默认: "+e.Message);return new GameConfig();}}
+ }
+}
