@@ -1,0 +1,15 @@
+
+// Mobile-only startup housekeeping; installed map folders are never removed.
+__attribute__((constructor)) static void RailMobileStartup(void){@autoreleasepool{
+ dispatch_async(dispatch_get_main_queue(),^{UIApplication.sharedApplication.idleTimerDisabled=YES;[[NSNotificationCenter defaultCenter]addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification*n){UIApplication.sharedApplication.idleTimerDisabled=YES;}];});
+ NSFileManager*fm=NSFileManager.defaultManager;NSString*maps=[NSHomeDirectory() stringByAppendingPathComponent:@"Documents/Maps"];
+ NSMutableArray<NSString*>*stale=[NSMutableArray array];
+ for(NSString*name in [fm contentsOfDirectoryAtPath:maps error:nil]){
+  NSString*p=[maps stringByAppendingPathComponent:name];
+  if([name hasPrefix:@"_import_"]){[stale addObject:p];continue;}
+  if([name hasPrefix:@"_backup_"]){NSData*data=[NSData dataWithContentsOfFile:[p stringByAppendingPathComponent:@"manifest.json"]];if(!data||data.length>4000000)continue;id m=[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];id ident=[m isKindOfClass:NSDictionary.class]?m[@"id"]:nil;if(![ident isKindOfClass:NSString.class]||![ident length]||[ident containsString:@"/"]||[ident containsString:@"\\"]||[ident containsString:@".."]||[ident hasPrefix:@"_"])continue;NSString*dest=[maps stringByAppendingPathComponent:ident];if(![fm fileExistsAtPath:dest])[fm moveItemAtPath:p toPath:dest error:nil];}
+ }
+ NSString*tmp=[NSTemporaryDirectory() stringByAppendingPathComponent:@"RailImport"];
+ for(NSString*name in [fm contentsOfDirectoryAtPath:tmp error:nil])[stale addObject:[tmp stringByAppendingPathComponent:name]];
+ dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{for(NSString*p in stale)[NSFileManager.defaultManager removeItemAtPath:p error:nil];});
+}}
